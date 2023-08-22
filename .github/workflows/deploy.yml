@@ -45,7 +45,7 @@ jobs:
         echo 'EOF' >> $GITHUB_ENV
 
     - name: Run helm upgrade
-      uses: koslib/helm-eks-action@v1.25.2
+      uses: koslib/helm-eks-action@experimental
       env:
         KUBE_CONFIG_DATA: ${{ env.KUBE_CONFIG_DATA }}
       with:
