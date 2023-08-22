@@ -10,6 +10,8 @@ metadata:
   {{$serviceVersion := get (get $projectStructure $name) "serviceVersion"}}
   name: {{ include "helpers.app.fullname" (dict "name" (ternary (printf "%s-%s" $name $serviceVersion) $name (not (empty $.Values.version))) "context" $) }}
   {{end}}
+  {{ else }}
+  name: {{ include "helpers.app.fullname" (dict "name" $name "context" $) }}
   {{end}}
   namespace: {{ $.Release.Namespace }}
   labels:
