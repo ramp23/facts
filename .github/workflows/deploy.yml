@@ -26,19 +26,9 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ env.AWS_REGION }}
 
-    # - name: Configure AWS Credentials
-    #   run: |
-    #     aws configure set region ${{ env.AWS_REGION }} --profile ${{ env.PROFILE_NAME }}
-    #     aws configure set aws_access_key_id ${{ secrets.AWS_ACCESS_KEY_ID  }} --profile ${{ env.PROFILE_NAME }}
-    #     aws configure set aws_secret_access_key ${{ secrets.AWS_SECRET_ACCESS_KEY }} --profile ${{ env.PROFILE_NAME }}
-
     - name: Login to Amazon ECR
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v1
-
-    # - name: Login to Amazon ECR
-    #   run: |
-    #     aws ecr get-login-password --region ${{ env.AWS_REGION }} --profile ${{ env.PROFILE_NAME }} | sudo docker login --username AWS --password-stdin ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
 
     - name: Build, tag, and push docker image to Amazon ECR
       env:
@@ -63,4 +53,15 @@ jobs:
         KUBE_CONFIG_DATA: ${{ env.KUBE_CONFIG_DATA }}
       with:
        command: helm upgrade --install --wait --atomic --namespace=facts ${{ github.event.inputs.service-name }} --values web-app/facts/${{ github.event.inputs.service-name }}.yaml web-app/facts/ --set defaultImageTag=${{ github.run_number }} 
-     
+
+    - name: Get URL
+      id: url
+      uses: koslib/helm-eks-action@master
+      env:
+        KUBE_CONFIG_DATA: ${{ env.KUBE_CONFIG_DATA }}
+      with:
+       command: kubectl get services --namespace facts $(${{ github.event.inputs.service-name }} | tr -d -)-external-lb --output jsonpath='{.status.loadBalancer.ingress[0].ip}'
+
+    - name: Get response from ${{ github.event.inputs.service-name }} 
+      run: curl -v -h ${{ steps.url.outputs.response }}
+      
