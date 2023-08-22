@@ -11,7 +11,7 @@ The infrastructure is shown in the figure below.
 
 ## Infrastructure diagram
 
-![App Screenshot](https://via.placeholder.com/468x300?text=App+Screenshot+Here)
+![App Screenshot](infrastructure.jpeg)
 
 
 ## Prerequisites
