@@ -45,9 +45,9 @@ jobs:
 
     - name: Update kube config
       run: |
-        aws eks update-kubeconfig --name ${{ env.CLUSTER_NAME }} --region ${{ env.AWS_REGION }} --kubeconfig ./kubeconfig
+        aws eks update-kubeconfig --name ${{ env.CLUSTER_NAME }} --region ${{ env.AWS_REGION }} 
         echo 'KUBE_CONFIG_DATA<<EOF' >> $GITHUB_ENV
-        echo $(cat ./kubeconfig | base64) >> $GITHUB_ENV
+        echo $(cat /home/runner/work/facts/facts/kubeconfig | base64) >> $GITHUB_ENV
         echo 'EOF' >> $GITHUB_ENV
         
     - name: Update Helm Chart
