@@ -1,8 +1,4 @@
 README.md
 .idea/
 .git*
-tmp
 *.tgz
-docs/
-samples/
-scripts/spin
