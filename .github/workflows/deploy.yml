@@ -38,7 +38,7 @@ jobs:
         REPOSITORY: facts
         IMAGE_TAG: ${{ github.run_number }}
       run: |
-        docker build --file web-app/Dockerfile -t $REGISTRY/$REPOSITORY:$IMAGE_TAG
+        docker buildx build --file web-app/Dockerfile --tag $REGISTRY/$REPOSITORY:$IMAGE_TAG facts
         docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
 
     - name: Update kube config
