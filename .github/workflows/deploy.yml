@@ -10,7 +10,9 @@ on:
 jobs:
   deploy_on_eks:
     runs-on: ubuntu-latest
-
+    env:
+      AWS_REGION: eu-central-1
+      CLUSTER_NAME: MoonActive
     steps:
     - name: Check out code
       uses: actions/checkout@v3
@@ -26,7 +28,7 @@ jobs:
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: eu-central-1
+        aws-region: ${{ env.AWS_REGION }}
 
     - name: Login to Amazon ECR
       id: login-ecr
@@ -42,11 +44,15 @@ jobs:
         docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
 
     - name: Update kube config
-      run: aws eks update-kubeconfig --name MoonActive
+      run: |
+        aws eks update-kubeconfig --name ${{ env.CLUSTER_NAME }} --region ${{ env.AWS_REGION }} --kubeconfig ./kubeconfig
+        echo 'KUBE_CONFIG_DATA<<EOF' >> $GITHUB_ENV
+        echo $(cat ./kubeconfig | base64) >> $GITHUB_ENV
+        echo 'EOF' >> $GITHUB_ENV
         
     - name: Update Helm Chart
       uses: WyriHaximus/github-action-helm3@v2.0
       with:
-        run: helm upgrade --install --wait --atomic --namespace=facts ${{ github.event.inputs.service-name }} --values web-app/facts/${{ github.event.inputs.service-name }}.yaml web-app/facts/ --set defaultImageTag=${{ github.run_number }}  
-        kubeconfig: /home/runner/.kube/config 
+        exec: helm upgrade --install --wait --atomic --namespace=facts ${{ github.event.inputs.service-name }} --values web-app/facts/${{ github.event.inputs.service-name }}.yaml web-app/facts/ --set defaultImageTag=${{ github.run_number }}  
+        kubeconfig: ${{ env.KUBE_CONFIG_DATA }}
        
