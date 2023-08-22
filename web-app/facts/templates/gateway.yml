@@ -1,0 +1,91 @@
+{{- range $host, $gate := .Values.gateways }}
+---
+{{- $gateway := ternary (lookup "networking.istio.io/v1alpha3" "Gateway" $.Release.Namespace (include "helpers.app.fullname" (dict "name" ($gate.name | default $host) "context" $))) (dict) (not (empty $.Values.version)) -}}
+{{- if not $gateway }}
+apiVersion: {{ include "helpers.capabilities.istio.apiVersion" $ }}
+kind: Gateway
+metadata:
+  name: {{ include "helpers.app.fullname" (dict "name" ($gate.name | default $host) "context" $) }}
+  namespace: {{ $.Release.Namespace | quote }}
+  labels:
+    {{- include "helpers.app.labels" $ | nindent 4 }}
+    {{- with $gate.labels }}{{- include "helpers.tplvalues.render" (dict "value" . "context" $) | nindent 4 }}{{- end }}
+  annotations:
+    {{- include "helpers.app.genericAnnotations" $ | indent 4 }}
+    {{- with $gate.certManager }}
+    kubernetes.io/tls-acme: "true"
+    {{- if .issuerName }}
+    cert-manager.io/{{ .issuerType | default "cluster-issuer" }}: {{ .issuerName }}
+    {{- end }}
+    {{- end }}
+    {{- with $gate.annotations }}{{- include "helpers.tplvalues.render" (dict "value" . "context" $) | nindent 4 }}{{- end }}
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+    {{- range $gate.servers }}
+    - {{ if .name -}}
+      name: {{ include "helpers.tplvalues.render" (dict "value" .name "context" $) }}
+      {{- else -}}
+      name: {{ $host }}
+      {{- end }}
+      port:  
+      {{- range $portSetting, $portValue := .port }}
+        {{ $portSetting }}: {{ $portValue }}
+      {{- end }}
+      hosts:
+      {{- range .hosts }}
+      - {{ . }}
+      {{- end }}
+      {{- if .tls }}
+      tls:
+        mode: {{ .tls.mode | default "SIMPLE" }}
+        httpsRedirect: {{ .tls.httpsRedirect | default "false" }}
+        {{- if not (empty .tls.credentialName) }}
+        credentialName: {{ .tls.credentialName }}
+        {{- end }}
+        {{- if not (.tls.credentialName) }}
+        {{- if or (eq "SIMPLE" .tls.mode) (eq "MUTUAL" .tls.mode) }}
+        {{- if and (not (empty .tls.serverCertificate)) (not (empty .tls.privateKey))}}
+        serverCertificate: {{ .tls.serverCertificate }}
+        privateKey: {{ .tls.privateKey }} 
+        {{- end }}
+        {{- end }}
+        {{- if and (eq "MUTUAL" .tls.mode) (not (empty .tls.caCertificates)) }}
+        caCertificates: {{ .tls.caCertificates }}
+        {{- end }} 
+        {{- end }}
+        {{- if not (empty .tls.subjectAltNames) }}
+        subjectAltNames:
+        {{- range .tls.subjectAltNames }}
+        - {{ . }}
+        {{- end }}
+        {{- end }}
+        {{- if not (empty .tls.verifyCertificateSpki) }}
+        verifyCertificateSpki:
+        {{- range .tls.verifyCertificateSpki }}
+        - {{ . }}
+        {{- end }}
+        {{- end }}
+        {{- if not (empty .tls.verifyCertificateHash) }}
+        verifyCertificateHash:
+        {{- range .tls.verifyCertificateHash }}
+        - {{ . }}
+        {{- end }}
+        {{- end }}
+        {{- if not (empty .tls.minProtocolVersion) }}
+        minProtocolVersion: {{ .tls.minProtocolVersion }}
+        {{- end }}
+        {{- if not (empty .tls.maxProtocolVersion) }}
+        maxProtocolVersion: {{ .tls.maxProtocolVersion }}
+        {{- end }}
+        {{- if not (empty .tls.cipherSuites) }}
+        cipherSuites:
+        {{- range .tls.cipherSuites }}
+        - {{ . }}
+        {{- end }}
+        {{- end }}
+      {{- end }}
+    {{- end }}
+{{- end }}
+{{- end }}

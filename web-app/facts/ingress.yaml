@@ -1,0 +1,27 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: facts
+  namespace: facts
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+spec:
+  ingressClassName: alb
+  rules:
+    - http:
+        paths:
+          - path: /uselessfact
+            pathType: Prefix
+            backend:
+              service:
+                name: uselessfacts-internal-lb
+                port:
+                  number: 80
+          - path: /funnyfact
+            pathType: Prefix
+            backend:
+              service:
+                name: chucknorris-internal-lb
+                port:
+                  number: 80

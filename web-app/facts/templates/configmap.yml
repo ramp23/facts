@@ -1,0 +1,133 @@
+{{- if or (not (empty .Values.envs)) (not (empty .Values.envsString)) }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "helpers.app.fullname" (dict "name" "envs" "context" $) }}
+  namespace: {{ .Release.Namespace | quote }}
+  labels: {{- include "helpers.app.labels" $ | nindent 4 }}
+  annotations: {{- include "helpers.app.hooksAnnotations" $ | nindent 4 }}
+data:
+  {{- include "helpers.configmaps.renderConfigMap" (dict "value" .Values.envs) | indent 2 }}
+  {{- include "helpers.configmaps.renderConfigMap" (dict "value" .Values.envsString) | indent 2 }}
+{{- end }}
+
+{{- range $cName, $val := .Values.configMaps -}}
+{{- if not (eq $cName "envs") }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "helpers.app.fullname" (dict "name" $cName "context" $) }}
+  namespace: {{ $.Release.Namespace | quote }}
+  labels:
+    {{- include "helpers.app.labels" $ | nindent 4 }}
+    {{- with $val.labels }}{{- include "helpers.tplvalues.render" (dict "value" . "context" $) | nindent 4 }}{{ end }}
+  annotations:
+    {{- include "helpers.app.hooksAnnotations" $ | nindent 4 }}
+    {{- with $val.annotations }}{{- include "helpers.tplvalues.render" (dict "value" . "context" $) | nindent 4 }}{{ end }}
+{{ if not (empty $val.binaryData) }}
+binaryData:
+{{ range $fileName, $path := $val.binaryData }}
+  {{ $fileName }}: {{- include "helpers.tplvalues.render" ( dict "value" ($.Files.Get $path | b64enc) "context" $ ) | nindent 4 }} 
+{{- end -}}
+{{else}}
+data:
+  {{- include "helpers.tplvalues.render" ( dict "value" $val.data "context" $ ) | nindent 2 }}
+{{ end }}
+{{- end -}}
+{{- end -}}
+{{- if not (empty .Values.configProperties) }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: api-env-configmap-{{ $.Values.version }}
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    app: api
+    version: "{{ .Values.version }}"
+  annotations: {{- include "helpers.app.hooksAnnotations" $ | nindent 4 }}
+data:
+{{- $currentScope := . -}}
+{{- range $path, $_ :=  .Files.Glob .Values.configProperties -}}
+  {{- with $currentScope -}}
+    {{- range .Files.Lines $path -}}
+      {{- if and (ne (trim .) "") (not (regexMatch "^#.*|^%.*" .)) -}}
+        {{- $parts := splitn "=" 2 . -}}
+        {{ regexReplaceAll "\\W+" $parts._0 "${1}_" | upper | trim | quote | nindent 4 }}: {{ $parts._1 | trim | quote }}
+      {{- end -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+{{- end -}}
+{{- if not (empty .Values.version) }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: versions-{{now | date "20060102150405" }}
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    version: "{{ .Values.version }}"
+    target: project-version-store
+  annotations: {{- include "helpers.app.hooksAnnotations" $ | nindent 4 }}
+data:
+  CURRENT_VERSION: "{{ $.Values.version }}"
+  {{- $cmver := "" -}}
+  {{- range $index, $cm := (lookup "v1" "ConfigMap" $.Release.Namespace "").items -}}
+    {{- if regexMatch "versions-([0-9]{4})([0-9]{2})([0-9]{2})([0-9]{2})([0-9]{2})([0-9]{2})" $cm.metadata.name -}}
+      {{- if or $cmver (lt $cmver $cm.metadata.name) -}}
+        {{- $cmver = $cm.metadata.name -}} 
+      {{- end -}}
+    {{- end -}}
+  {{- end -}} 
+  {{- if $cmver }}
+  {{- $prev_cm := (lookup "v1" "ConfigMap" $.Release.Namespace $cmver) }}
+  PREVIOUS_VERSION: {{ get $prev_cm.data "CURRENT_VERSION" }}
+  {{- end }}
+{{- $general := $.Values.deploymentsGeneral -}}
+{{- range $name, $d := .Values.deployments }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{$name}}-versions-{{now | date "20060102150405" }}
+  namespace: {{ $.Release.Namespace | quote }}
+  labels:
+    {{- include "helpers.app.labels" $ | nindent 4 }}
+    {{- with $general.labels }}{{- include "helpers.tplvalues.render" (dict "value" . "context" $) | nindent 4 }}{{- end }}
+    {{- with .labels }}{{- include "helpers.tplvalues.render" (dict "value" . "context" $) | nindent 4 }}{{- end }}
+    target: version-store
+  annotations: {{- include "helpers.app.hooksAnnotations" $ | nindent 4 }}
+data:
+  {{printf "%s_%s" ($name | upper) "CURRENT_VERSION"}}: "{{- with .labels }}{{- include "helpers.tplvalues.render" (dict "value" .serviceVersion "context" $) | nindent 4 }}{{- end }}"
+
+  {{- $cmservicever := "" -}}
+  {{- range $index, $cm := (lookup "v1" "ConfigMap" $.Release.Namespace "").items -}}
+    {{- if regexMatch (printf "%s-%s" $name "versions-([0-9]{4})([0-9]{2})([0-9]{2})([0-9]{2})([0-9]{2})([0-9]{2})") $cm.metadata.name -}}
+      {{- if or $cmservicever (lt $cmservicever $cm.metadata.name) -}}
+        {{- $cmservicever = $cm.metadata.name -}} 
+      {{- end -}}
+    {{- end -}}
+  {{- end -}} 
+  {{- if $cmservicever }}
+  {{- $prev_cm := (lookup "v1" "ConfigMap" $.Release.Namespace $cmservicever) }}
+  {{printf "%s_%s" ($name | upper) "PREVIOUS_VERSION"}}: {{ get $prev_cm.data (printf "%s_%s" ($name | upper) "CURRENT_VERSION") }}
+  {{- end }}
+
+  CURRENT_VERSION: "{{ $.Values.version }}"
+  {{- $cmver := "" -}}
+  {{- range $index, $cm := (lookup "v1" "ConfigMap" $.Release.Namespace "").items -}}
+    {{- if regexMatch "versions-([0-9]{4})([0-9]{2})([0-9]{2})([0-9]{2})([0-9]{2})([0-9]{2})" $cm.metadata.name -}}
+      {{- if or $cmver (lt $cmver $cm.metadata.name) -}}
+        {{- $cmver = $cm.metadata.name -}} 
+      {{- end -}}
+    {{- end -}}
+  {{- end -}} 
+  {{- if $cmver }}
+  {{- $prev_cm := (lookup "v1" "ConfigMap" $.Release.Namespace $cmver) }}
+  PREVIOUS_VERSION: {{ get $prev_cm.data "CURRENT_VERSION" }}
+  {{- end }}
+{{- end -}}
+{{- end -}}
