@@ -50,19 +50,19 @@ jobs:
         docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
 
     - name: Update kube config
-        # echo 'KUBE_CONFIG_DATA<<EOF' >> $GITHUB_ENV
-        # echo $(cat /home/runner/.kube/config | base64 | tr -d ' ') >> $GITHUB_ENV
-        # echo 'EOF' >> $GITHUB_ENV
       run: |
         aws configure set region ${{ env.AWS_REGION }} --profile ${{ env.PROFILE_NAME }}
         aws configure set aws_access_key_id ${{ secrets.AWS_ACCESS_KEY_ID  }} --profile ${{ env.PROFILE_NAME }}
         aws configure set aws_secret_access_key ${{ secrets.AWS_SECRET_ACCESS_KEY }} --profile ${{ env.PROFILE_NAME }}
         aws eks update-kubeconfig --name ${{ env.CLUSTER_NAME }} --region ${{ env.AWS_REGION }} --kubeconfig /home/runner/.kube/config --profile ${{ env.PROFILE_NAME }}
-
+        echo 'KUBE_CONFIG_DATA<<EOF' >> $GITHUB_ENV
+        echo $(cat /home/runner/.kube/config | base64) >> $GITHUB_ENV
+        echo 'EOF' >> $GITHUB_ENV
+        
     - name: Run helm upgrade
       uses: WyriHaximus/github-action-helm3@v3
       with:
        exec: helm upgrade --install --wait --atomic --namespace=facts ${{ github.event.inputs.service-name }} --values web-app/facts/${{ github.event.inputs.service-name }}.yaml web-app/facts/ --set defaultImageTag=${{ github.run_number }} 
-       # kubeconfig: '${{ env.KUBE_CONFIG_DATA }}'
-       # overrule_existing_kubeconfig: "true"
+       kubeconfig: '${{ env.KUBE_CONFIG_DATA }}'
+       overrule_existing_kubeconfig: "true"
      
