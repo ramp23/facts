@@ -26,7 +26,7 @@ releasePrefix: "-"
 version: ""
 defaultImage: 849234523634.dkr.ecr.eu-central-1.amazonaws.com/facts
 defaultImageTag: latest
-defaultImagePullPolicy: "IfNotPresent"
+defaultImagePullPolicy: "Always"
 
 deployments:
   chucknorris:
@@ -40,7 +40,11 @@ deployments:
           - name: API_URL
             value: "https://api.chucknorris.io/jokes/random"
         ports:
-          - containerPort: 8080
+          - containerPort: 80
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
 
 serviceaccounts:
   chuck-norris:
@@ -54,25 +58,30 @@ services:
       app: facts
       type: chuck_norris
     annotations:
-      service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+      service.beta.kubernetes.io/aws-load-balancer-type: nlb
+      service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
       service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
-      service.beta.kubernetes.io/aws-load-balancer-scheme: "internal"
+      service.beta.kubernetes.io/aws-load-balancer-scheme: internal
+      service.beta.kubernetes.io/aws-load-balancer-internal: "true"
     type: LoadBalancer
     ports:
       - name: http
-        port: 8080
+        type: TCP
+        port: 80
   chucknorris-external-lb:
     labels:
       app: facts
       type: chuck_norris
     annotations:
-      service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+      service.beta.kubernetes.io/aws-load-balancer-type: nlb
+      service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
       service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
-      service.beta.kubernetes.io/aws-load-balancer-scheme: "internet-facing"
+      service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
     type: LoadBalancer
     ports:
       - name: http
-        port: 8080
+        type: TCP
+        port: 80
 
 diagnosticMode:
   enbled: false
