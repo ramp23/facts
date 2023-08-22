@@ -63,5 +63,6 @@ jobs:
        command: kubectl get services --namespace facts $(echo ${{ github.event.inputs.service-name }} | tr -d -)-external-lb --output jsonpath='{.status.loadBalancer.ingress[0].ip}'
 
     - name: Get response from ${{ github.event.inputs.service-name }} 
-      run: curl -v -h ${{ steps.url.outputs.response }}
-      
+      run: |
+        curl -v -h ${{ steps.url.outputs.response }}
+        curl -v -h ${{ steps.url.outputs.response }}/ready
