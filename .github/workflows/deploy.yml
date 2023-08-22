@@ -45,9 +45,9 @@ jobs:
         echo 'EOF' >> $GITHUB_ENV
 
     - name: Run helm upgrade
-      uses: koslib/helm-eks-action@master
-      env:
-        KUBE_CONFIG_DATA: ${{ env.KUBE_CONFIG_DATA }}
+      uses: WyriHaximus/github-action-helm3@v3
       with:
-        command: helm upgrade --install --wait --atomic --namespace=facts ${{ github.event.inputs.service-name }} --values web-app/facts/${{ github.event.inputs.service-name }}.yaml web-app/facts/ --set defaultImageTag=${{ github.run_number }}  
+       exec: helm upgrade --install --wait --atomic --namespace=facts ${{ github.event.inputs.service-name }} --values web-app/facts/${{ github.event.inputs.service-name }}.yaml web-app/facts/ --set defaultImageTag=${{ github.run_number }} 
+       kubeconfig: '${{ env.KUBE_CONFIG_DATA }}'
+       overrule_existing_kubeconfig: "true"
      
