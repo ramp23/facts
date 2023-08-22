@@ -45,12 +45,15 @@ jobs:
 
     - name: Update kube config
       run: |
-        aws eks update-kubeconfig --name ${{ env.CLUSTER_NAME }} --region ${{ env.AWS_REGION }} --kubeconfig ./kubeconfig
-        echo 'KUBE_CONFIG_DATA=$(cat ./kubeconfig | base64)' >> $GITHUB_ENV
-        
-    - name: Update Helm Chart
-      uses: WyriHaximus/github-action-helm3@v2.0
+        aws eks update-kubeconfig --name ${{ env.CLUSTER_NAME }} --region ${{ env.AWS_REGION }}  --kubeconfig ./kubeconfig
+        echo 'KUBE_CONFIG_DATA<<EOF' >> $GITHUB_ENV
+        echo $(cat ./kubeconfig | base64) >> $GITHUB_ENV
+        echo 'EOF' >> $GITHUB_ENV
+
+    - name: Run helm upgrade
+      uses: koslib/helm-eks-action@master
+      env:
+        KUBE_CONFIG_DATA: ${{ env.KUBE_CONFIG_DATA }}
       with:
-        exec: helm upgrade --install --wait --atomic --namespace=facts ${{ github.event.inputs.service-name }} --values web-app/facts/${{ github.event.inputs.service-name }}.yaml web-app/facts/ --set defaultImageTag=${{ github.run_number }}  
-        kubeconfig: ${{ env.KUBE_CONFIG_DATA }}
-       
+        command: helm upgrade --install --wait --atomic --namespace=facts ${{ github.event.inputs.service-name }} --values web-app/facts/${{ github.event.inputs.service-name }}.yaml web-app/facts/ --set defaultImageTag=${{ github.run_number }}  
+     
