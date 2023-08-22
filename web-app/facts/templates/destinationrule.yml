@@ -1,0 +1,459 @@
+{{- range $host, $dr := .Values.destinationrules }}
+---
+apiVersion: {{ include "helpers.capabilities.istio.apiVersion" $ }}
+kind: DestinationRule
+metadata:
+  name: {{ include "helpers.app.fullname" (dict "name" ($dr.name | default $host) "context" $) }}
+  namespace: {{ $.Release.Namespace | quote }}
+  labels:
+    {{- include "helpers.app.labels" $ | nindent 4 }}
+    {{- with $dr.labels }}{{- include "helpers.tplvalues.render" (dict "value" . "context" $) | nindent 4 }}{{- end }}
+  annotations:
+    {{- include "helpers.app.genericAnnotations" $ | indent 4 }}
+    {{- with $dr.certManager }}
+    kubernetes.io/tls-acme: "true"
+    {{- if .issuerName }}
+    cert-manager.io/{{ .issuerType | default "cluster-issuer" }}: {{ .issuerName }}
+    {{- end }}
+    {{- end }}
+    {{- with $dr.annotations }}{{- include "helpers.tplvalues.render" (dict "value" . "context" $) | nindent 4 }}{{- end }}
+spec:
+
+  {{- if not (empty $dr.host) }}
+  host: {{ $dr.host }}
+  {{- end }} 
+
+  {{- if not (empty $dr.trafficPolicy) }}
+  trafficPolicy:
+    {{ range $trafficPolicy, $trafficPolicyValue := $dr.trafficPolicy -}}
+      {{ if and (not (empty $trafficPolicy)) (eq "loadBalancer" $trafficPolicy) }}
+      loadBalancer:
+        {{ range $loadBalancerSetting, $loadBalancerSettingValue := $trafficPolicyValue }}
+        {{ $simpleLoadBalancerAlgorithms := list "UNSPECIFIED" "RANDOM" "PASSTHROUGH" "ROUND_ROBIN" "LEAST_REQUEST" "LEAST_CONN" }}
+        {{ if and (not (empty $loadBalancerSetting)) (eq "simple" $loadBalancerSetting) }}
+        {{ if has $loadBalancerSettingValue $simpleLoadBalancerAlgorithms }}
+        simple: {{ ternary "LEAST_REQUEST" $loadBalancerSettingValue (eq "LEAST_CONN" $loadBalancerSettingValue) }}
+        {{ else }}
+        {{ $loadBalancerSettingValue | quote | printf "\n%s was your simple LB algorithm, please check your settings" | fail }}
+        {{ end }}
+        {{ end }}
+
+        {{ if and (not (empty $loadBalancerSetting)) (eq "consistentHash" $loadBalancerSetting) }}
+        consistentHash:
+          {{- if $loadBalancerSettingValue.httpCookie }}
+          httpCookie:
+          {{- range $httpCookieSetting, $httpCookieValue := $loadBalancerSettingValue.httpCookie }}
+            {{ $httpCookieSetting -}}: {{ $httpCookieValue -}} 
+          {{- end }}
+          {{- end -}}
+
+          {{- if not (empty $loadBalancerSettingValue.httpHeaderName) }}
+          httpHeaderName: {{ $loadBalancerSettingValue.httpHeaderName -}} 
+          {{- end -}}
+
+          {{- if not (empty $loadBalancerSettingValue.useSourceIp) }}
+          useSourceIp: {{ $loadBalancerSettingValue.useSourceIp -}} 
+          {{- end -}}
+
+          {{- if not (empty $loadBalancerSettingValue.httpQueryParameterName) }}
+          httpQueryParameterName: {{ $loadBalancerSettingValue.httpQueryParameterName -}} 
+          {{- end -}}
+
+          {{- if not (empty $loadBalancerSettingValue.ringHash) }}
+          ringHash: 
+            minimumRingSize: {{ $loadBalancerSettingValue.ringHash.minimumRingSize -}} 
+          {{- end -}}
+
+          {{- if not (empty $loadBalancerSettingValue.maglev) }}
+          maglev: 
+            tableSize: {{ $loadBalancerSettingValue.maglev.tableSize -}} 
+          {{- end -}}
+
+          {{- if not (empty $loadBalancerSettingValue.minimumRingSize) }}
+          minimumRingSize: {{ $loadBalancerSettingValue.minimumRingSize -}} 
+          {{- end -}}
+        {{ end }}
+
+        {{- if and (not (empty $loadBalancerSetting)) (eq "localityLbSetting" $loadBalancerSetting) }}
+        localityLbSetting:
+
+          {{- if not (empty $loadBalancerSettingValue.enabled) }}
+          enabled: {{ $loadBalancerSettingValue.enabled -}} 
+          {{- end -}}
+
+          {{- if not (empty $loadBalancerSettingValue.failoverPriority) }}
+          failoverPriority: 
+          {{- range $loadBalancerSettingValue.failoverPriority }}
+            - {{ . | quote }}
+          {{- end }}
+          {{- end }} 
+
+          {{- if not (empty $loadBalancerSettingValue.distribute) }}
+          distribute: 
+            {{- range $distribute := $loadBalancerSettingValue.distribute }}
+          - from: {{ $distribute.from }}
+            to: 
+              {{ range $toZone, $toWeight := $distribute.to -}}
+              {{ $toZone }}: {{ $toWeight }}
+              {{ end -}}
+            {{- end -}}
+          {{- end -}}
+
+          {{- if not (empty $loadBalancerSettingValue.failover) }}
+          failover: 
+            {{- range $failover := $loadBalancerSettingValue.failover }}
+          - from: {{ $failover.from }}
+            to: {{ $failover.from }}
+            {{- end -}}
+          {{- end -}}
+        {{- end -}}
+
+        {{- if and (not (empty $loadBalancerSetting)) (eq "warmupDurationSecs" $loadBalancerSetting) }}
+        {{- if or (eq "ROUND_ROBIN" $trafficPolicyValue.simple) (eq "LEAST_REQUEST" $trafficPolicyValue.simple) }}
+        warmupDurationSecs: {{ $loadBalancerSettingValue }}
+        {{ else if not $trafficPolicyValue.simple }}
+        {{ printf "trafficPolicyValue.simple was your not set, warmupDurationSecs is only supported for ROUND_ROBIN and LEAST_REQUEST load balancers" | fail }}
+        {{ else }}
+        {{ printf "\n%s was your warmupDurationSecs \n%s was your trafficPolicyValue.simple, this is only supported for ROUND_ROBIN and LEAST_REQUEST load balancers" ($loadBalancerSettingValue | quote) ($trafficPolicyValue.simple | quote) | fail }}
+        {{ end }}
+        {{ end }}
+
+      {{ end }}
+      {{ end }}
+
+    {{ if and (not (empty $trafficPolicy)) (eq "connectionPool" $trafficPolicy) }}
+      connectionPool:
+        {{- if not (empty $trafficPolicyValue.tcp) }}
+        tcp:
+          {{- range $connectionPoolTCPSetting, $connectionPoolTCPValue := $trafficPolicyValue.tcp }}
+            {{ if and (not (empty $connectionPoolTCPSetting)) (ne "tcpKeepalive" $connectionPoolTCPSetting) -}}
+            {{- $connectionPoolTCPSetting -}}: {{ $connectionPoolTCPValue -}}
+            {{ else -}}
+            tcpKeepalive:
+              {{ range $tcpKeepaliveSetting, $tcpKeepaliveValue := $connectionPoolTCPValue }}
+                {{ $tcpKeepaliveSetting -}}: {{ $tcpKeepaliveValue -}}
+              {{ end }}
+            {{- end -}}
+          {{ end }}
+        {{ end }}
+
+        {{- if not (empty $trafficPolicyValue.http) }}
+        http:
+          {{- range $connectionPoolHTTPSetting, $connectionPoolHTTPValue := $trafficPolicyValue.http }}
+            {{ if and (not (empty $connectionPoolHTTPSetting)) (ne "h2UpgradePolicy" $connectionPoolHTTPSetting) -}}
+            {{- $connectionPoolHTTPSetting -}}: {{ $connectionPoolHTTPValue -}}
+            {{ else if (has $connectionPoolHTTPValue (list "DEFAULT" "DO_NOT_UPGRADE" "UPGRADE") ) -}}
+            h2UpgradePolicy: {{ $connectionPoolHTTPValue }}
+            {{ else }}
+            {{ $connectionPoolHTTPValue | quote | printf "\n%s was your h2UpgradePolicy, DEFAULT, DO_NOT_UPGRADE, UPGRADE are only supported" | fail }}
+            {{- end -}}
+          {{ end }}
+        {{ end }}
+
+    {{ end }}
+
+    {{ if and (not (empty $trafficPolicy)) (eq "outlierDetection" $trafficPolicy) }}
+      outlierDetection:
+      {{ range $outlierDetectionSetting, $outlierDetectionValue := $trafficPolicyValue }}
+      {{ if not (empty $outlierDetectionSetting) }}
+        {{ $outlierDetectionSetting }}: {{ $outlierDetectionValue }}
+      {{ end }}
+      {{ end }}
+    {{ end }}
+
+    {{ if and (not (empty $trafficPolicy)) (eq "tls" $trafficPolicy) }}
+      tls:
+      {{ range $tlsSetting, $tlsValue := $trafficPolicyValue }}
+      {{ if not (empty $tlsSetting) }}
+        {{ $tlsSetting }}: {{ $tlsValue }}
+      {{ end }}
+      {{ end }}
+    {{ end }}
+
+    {{ if and (not (empty $trafficPolicy)) (eq "tunnel" $trafficPolicy) }}
+      tunnel:
+      {{ range $tunnelSetting, $tunnelValue := $trafficPolicyValue }}
+      {{ if not (empty $tunnelSetting) }}
+        {{ $tunnelSetting }}: {{ $tunnelValue }}
+      {{ end }}
+      {{ end }}
+    {{ end }}
+
+    {{ if and (not (empty $trafficPolicy)) (eq "portLevelSettings" $trafficPolicy) }}
+      portLevelSettings:
+        {{ range $portLevelSetting := $trafficPolicyValue }}
+        - port: 
+          {{ range $portSetting, $portSettingValue := $portLevelSetting.port }}
+            {{ $portSetting }}: {{ $portSettingValue }}
+          {{ end }}
+
+          {{ if not (empty $portLevelSetting.tls) }}
+          tls:
+          {{ range $tlsSetting, $tlsSettingValue := $portLevelSetting.tls }}
+            {{ $tlsSetting }}: {{ $tlsSettingValue }}
+          {{ end }}
+          {{ end }}
+
+          {{ if not (empty $portLevelSetting.loadBalancer) }}
+          loadBalancer:
+          {{ range $loadBalancerSetting, $loadBalancerSettingValue := $portLevelSetting.loadBalancer }}
+            {{ $loadBalancerSetting }}: {{ $loadBalancerSettingValue }}
+          {{ end }}
+          {{ end }}
+
+          {{ if not (empty $portLevelSetting.outlierDetection) }}
+          outlierDetection:
+          {{ range $outlierDetectionSetting, $outlierDetectionSettingValue := $portLevelSetting.outlierDetection }}
+            {{ $outlierDetectionSetting }}: {{ $outlierDetectionSettingValue }}
+          {{ end }}
+          {{ end }}
+
+
+        {{ end }}
+    {{ end }}
+
+
+
+    {{- end -}}
+  {{- end -}}
+
+  {{- if not (empty $dr.exportTo) }}
+  exportTo:
+  {{ range $namespace := $dr.exportTo }}
+  - {{ $namespace }}
+  {{ end }}
+  {{- end -}}
+
+  {{- if not (empty $dr.workloadSelector) }}
+  workloadSelector:
+    matchLabels: 
+    {{ with $dr.workloadSelector.matchLabels }}
+    {{ toYaml . | nindent 6 }}
+    {{ end }}
+  {{- end -}}
+
+  {{- if not (empty $dr.subsets) }}
+  subsets:
+    {{ range $index, $subset := $dr.subsets }}
+    - name: {{ $subset.name }}
+      labels:
+      {{ if and ($dr.blueGreenSubsetsVersionLabel) (not $index) }}
+        {{ $cmver := "" }}
+        {{ range $index, $cm := (lookup "v1" "ConfigMap" $.Release.Namespace "").items }}
+        {{ if regexMatch "api-versions-([0-9]{4})([0-9]{2})([0-9]{2})([0-9]{2})([0-9]{2})([0-9]{2})" $cm.metadata.name }}
+        {{ if or $cmver (lt $cmver $cm.metadata.name) }}
+        {{ $cmver = $cm.metadata.name }} 
+        {{ end }}
+        {{ end }}
+        {{ end }} 
+        {{ if $cmver }}
+        {{ $prev_cm := (lookup "v1" "ConfigMap" $.Release.Namespace $cmver) }}
+        version: {{ get $prev_cm.data "CURRENT_VERSION" }}
+        {{ end }}
+      {{ else if $dr.blueGreenSubsetsVersionLabel }}
+        version: {{ $.Values.version }}
+      {{ end }}
+      {{ if not (empty $subset.labels) }}
+      {{- with $subset.labels }}
+      {{ toYaml . | indent 2}}
+      {{- end }}
+      {{ end }}
+
+      {{ if not (empty $subset.trafficPolicy) }}
+      trafficPolicy:
+      {{ range $trafficPolicy, $trafficPolicyValue := $subset.trafficPolicy -}}
+        {{ if and (not (empty $trafficPolicy)) (eq "loadBalancer" $trafficPolicy) }}
+        loadBalancer:
+          {{ range $loadBalancerSetting, $loadBalancerSettingValue := $trafficPolicyValue }}
+          {{ $simpleLoadBalancerAlgorithms := list "UNSPECIFIED" "RANDOM" "PASSTHROUGH" "ROUND_ROBIN" "LEAST_REQUEST" "LEAST_CONN" }}
+          {{ if and (not (empty $loadBalancerSetting)) (eq "simple" $loadBalancerSetting) }}
+          {{ if has $loadBalancerSettingValue $simpleLoadBalancerAlgorithms }}
+          simple: {{ ternary "LEAST_REQUEST" $loadBalancerSettingValue (eq "LEAST_CONN" $loadBalancerSettingValue) }}
+          {{ else }}
+          {{ $loadBalancerSettingValue | quote | printf "\n%s was your simple LB algorithm, please check your settings" | fail }}
+          {{ end }}
+          {{ end }}
+
+          {{ if and (not (empty $loadBalancerSetting)) (eq "consistentHash" $loadBalancerSetting) }}
+          consistentHash:
+            {{- if $loadBalancerSettingValue.httpCookie }}
+            httpCookie:
+            {{- range $httpCookieSetting, $httpCookieValue := $loadBalancerSettingValue.httpCookie }}
+              {{ $httpCookieSetting -}}: {{ $httpCookieValue -}} 
+            {{- end }}
+            {{- end -}}
+
+            {{- if not (empty $loadBalancerSettingValue.httpHeaderName) }}
+            httpHeaderName: {{ $loadBalancerSettingValue.httpHeaderName -}} 
+            {{- end -}}
+
+            {{- if not (empty $loadBalancerSettingValue.useSourceIp) }}
+            useSourceIp: {{ $loadBalancerSettingValue.useSourceIp -}} 
+            {{- end -}}
+
+            {{- if not (empty $loadBalancerSettingValue.httpQueryParameterName) }}
+            httpQueryParameterName: {{ $loadBalancerSettingValue.httpQueryParameterName -}} 
+            {{- end -}}
+
+            {{- if not (empty $loadBalancerSettingValue.ringHash) }}
+            ringHash: 
+              minimumRingSize: {{ $loadBalancerSettingValue.ringHash.minimumRingSize -}} 
+            {{- end -}}
+
+            {{- if not (empty $loadBalancerSettingValue.maglev) }}
+            maglev: 
+              tableSize: {{ $loadBalancerSettingValue.maglev.tableSize -}} 
+            {{- end -}}
+
+            {{- if not (empty $loadBalancerSettingValue.minimumRingSize) }}
+            minimumRingSize: {{ $loadBalancerSettingValue.minimumRingSize -}} 
+            {{- end -}}
+          {{ end }}
+
+          {{- if and (not (empty $loadBalancerSetting)) (eq "localityLbSetting" $loadBalancerSetting) }}
+          localityLbSetting:
+
+            {{- if not (empty $loadBalancerSettingValue.enabled) }}
+            enabled: {{ $loadBalancerSettingValue.enabled -}} 
+            {{- end -}}
+
+            {{- if not (empty $loadBalancerSettingValue.failoverPriority) }}
+            failoverPriority: 
+            {{- range $loadBalancerSettingValue.failoverPriority }}
+              - {{ . | quote }}
+            {{- end }}
+            {{- end }} 
+
+            {{- if not (empty $loadBalancerSettingValue.distribute) }}
+            distribute: 
+              {{- range $distribute := $loadBalancerSettingValue.distribute }}
+            - from: {{ $distribute.from }}
+              to: 
+                {{ range $toZone, $toWeight := $distribute.to -}}
+                {{ $toZone }}: {{ $toWeight }}
+                {{ end -}}
+              {{- end -}}
+            {{- end -}}
+
+            {{- if not (empty $loadBalancerSettingValue.failover) }}
+            failover: 
+              {{- range $failover := $loadBalancerSettingValue.failover }}
+            - from: {{ $failover.from }}
+              to: {{ $failover.from }}
+              {{- end -}}
+            {{- end -}}
+          {{- end -}}
+
+          {{- if and (not (empty $loadBalancerSetting)) (eq "warmupDurationSecs" $loadBalancerSetting) }}
+          {{- if or (eq "ROUND_ROBIN" $trafficPolicyValue.simple) (eq "LEAST_REQUEST" $trafficPolicyValue.simple) }}
+          warmupDurationSecs: {{ $loadBalancerSettingValue }}
+          {{ else if not $trafficPolicyValue.simple }}
+          {{ printf "trafficPolicyValue.simple was your not set, warmupDurationSecs is only supported for ROUND_ROBIN and LEAST_REQUEST load balancers" | fail }}
+          {{ else }}
+          {{ printf "\n%s was your warmupDurationSecs \n%s was your trafficPolicyValue.simple, this is only supported for ROUND_ROBIN and LEAST_REQUEST load balancers" ($loadBalancerSettingValue | quote) ($trafficPolicyValue.simple | quote) | fail }}
+          {{ end }}
+          {{ end }}
+
+        {{ end }}
+        {{ end }}
+
+      {{ if and (not (empty $trafficPolicy)) (eq "connectionPool" $trafficPolicy) }}
+        connectionPool:
+          {{- if not (empty $trafficPolicyValue.tcp) }}
+          tcp:
+            {{- range $connectionPoolTCPSetting, $connectionPoolTCPValue := $trafficPolicyValue.tcp }}
+              {{ if and (not (empty $connectionPoolTCPSetting)) (ne "tcpKeepalive" $connectionPoolTCPSetting) -}}
+              {{- $connectionPoolTCPSetting -}}: {{ $connectionPoolTCPValue -}}
+              {{ else -}}
+              tcpKeepalive:
+                {{ range $tcpKeepaliveSetting, $tcpKeepaliveValue := $connectionPoolTCPValue }}
+                  {{ $tcpKeepaliveSetting -}}: {{ $tcpKeepaliveValue -}}
+                {{ end }}
+              {{- end -}}
+            {{ end }}
+          {{ end }}
+
+          {{- if not (empty $trafficPolicyValue.http) }}
+          http:
+            {{- range $connectionPoolHTTPSetting, $connectionPoolHTTPValue := $trafficPolicyValue.http }}
+              {{ if and (not (empty $connectionPoolHTTPSetting)) (ne "h2UpgradePolicy" $connectionPoolHTTPSetting) -}}
+              {{- $connectionPoolHTTPSetting -}}: {{ $connectionPoolHTTPValue -}}
+              {{ else if (has $connectionPoolHTTPValue (list "DEFAULT" "DO_NOT_UPGRADE" "UPGRADE") ) -}}
+              h2UpgradePolicy: {{ $connectionPoolHTTPValue }}
+              {{ else }}
+              {{ $connectionPoolHTTPValue | quote | printf "\n%s was your h2UpgradePolicy, DEFAULT, DO_NOT_UPGRADE, UPGRADE are only supported" | fail }}
+              {{- end -}}
+            {{ end }}
+          {{ end }}
+
+      {{ end }}
+
+      {{ if and (not (empty $trafficPolicy)) (eq "outlierDetection" $trafficPolicy) }}
+        outlierDetection:
+        {{ range $outlierDetectionSetting, $outlierDetectionValue := $trafficPolicyValue }}
+        {{ if not (empty $outlierDetectionSetting) }}
+          {{ $outlierDetectionSetting }}: {{ $outlierDetectionValue }}
+        {{ end }}
+        {{ end }}
+      {{ end }}
+
+      {{ if and (not (empty $trafficPolicy)) (eq "tls" $trafficPolicy) }}
+        tls:
+        {{ range $tlsSetting, $tlsValue := $trafficPolicyValue }}
+        {{ if not (empty $tlsSetting) }}
+          {{ $tlsSetting }}: {{ $tlsValue }}
+        {{ end }}
+        {{ end }}
+      {{ end }}
+
+      {{ if and (not (empty $trafficPolicy)) (eq "tunnel" $trafficPolicy) }}
+        tunnel:
+        {{ range $tunnelSetting, $tunnelValue := $trafficPolicyValue }}
+        {{ if not (empty $tunnelSetting) }}
+          {{ $tunnelSetting }}: {{ $tunnelValue }}
+        {{ end }}
+        {{ end }}
+      {{ end }}
+
+      {{ if and (not (empty $trafficPolicy)) (eq "portLevelSettings" $trafficPolicy) }}
+        portLevelSettings:
+          {{ range $portLevelSetting := $trafficPolicyValue }}
+          - port: 
+            {{ range $portSetting, $portSettingValue := $portLevelSetting.port }}
+              {{ $portSetting }}: {{ $portSettingValue }}
+            {{ end }}
+
+            {{ if not (empty $portLevelSetting.tls) }}
+            tls:
+            {{ range $tlsSetting, $tlsSettingValue := $portLevelSetting.tls }}
+              {{ $tlsSetting }}: {{ $tlsSettingValue }}
+            {{ end }}
+            {{ end }}
+
+            {{ if not (empty $portLevelSetting.loadBalancer) }}
+            loadBalancer:
+            {{ range $loadBalancerSetting, $loadBalancerSettingValue := $portLevelSetting.loadBalancer }}
+              {{ $loadBalancerSetting }}: {{ $loadBalancerSettingValue }}
+            {{ end }}
+            {{ end }}
+
+            {{ if not (empty $portLevelSetting.outlierDetection) }}
+            outlierDetection:
+            {{ range $outlierDetectionSetting, $outlierDetectionSettingValue := $portLevelSetting.outlierDetection }}
+              {{ $outlierDetectionSetting }}: {{ $outlierDetectionSettingValue }}
+            {{ end }}
+            {{ end }}
+
+
+          {{ end }}
+
+      {{ end }}       
+    {{ end }}
+  {{- end }} 
+  {{- end }} 
+  {{- end }} 
+
+
+
+
+{{- end -}}

@@ -1,0 +1,617 @@
+{{- range $host, $vs := .Values.virtualservices }}
+---
+{{- $virtualservice := ternary (lookup "networking.istio.io/v1alpha3" "VirtualService" $.Release.Namespace (include "helpers.app.fullname" (dict "name" ($vs.name | default $host) "context" $))) (dict) (not (empty $.Values.version)) -}}
+{{- if not $virtualservice }}
+apiVersion: {{ include "helpers.capabilities.istio.apiVersion" $ }}
+kind: VirtualService
+metadata:
+  name: {{ include "helpers.app.fullname" (dict "name" ($vs.name | default $host) "context" $) }}
+  namespace: {{ $.Release.Namespace | quote }}
+  labels:
+    {{- include "helpers.app.labels" $ | nindent 4 }}
+    {{- with $vs.labels }}{{- include "helpers.tplvalues.render" (dict "value" . "context" $) | nindent 4 }}{{- end }}
+  annotations:
+    {{- include "helpers.app.genericAnnotations" $ | indent 4 }}
+    {{- with $vs.certManager }}
+    kubernetes.io/tls-acme: "true"
+    {{- if .issuerName }}
+    cert-manager.io/{{ .issuerType | default "cluster-issuer" }}: {{ .issuerName }}
+    {{- end }}
+    {{- end }}
+    {{- with $vs.annotations }}{{- include "helpers.tplvalues.render" (dict "value" . "context" $) | nindent 4 }}{{- end }}
+spec:
+  {{- if not (empty $vs.hosts) }}
+  hosts: 
+  {{- range $vs.hosts }}
+    - {{ . }}
+  {{- end }}
+  {{- end }} 
+  {{- if not (empty $vs.gateways) }}
+  gateways: 
+  {{- range $vs.gateways }}
+    - {{ . }}
+  {{- end }}
+  {{- end }} 
+  {{- if not (empty $vs.exportTo) }}
+  exportTo: 
+  {{- range $vs.exportTo }}
+    - {{ . }}
+  {{- end }}
+  {{- end }}
+  {{- if not (empty $vs.http) }}
+  http:
+    {{ range $httpIndex, $httpSettings := $vs.http }}
+    
+
+    {{ if and (hasKey $httpSettings "match") (not (empty $httpSettings.match)) }}
+  - match:
+    - {{ range $matchSettings, $matchValues:= $httpSettings.match -}}
+      {{ if not (empty $matchValues.name) -}}
+      name: {{ $matchValues.name }}
+      {{- end -}}
+      {{ $stringMatch := list "exact" "prefix" "regex" }}
+
+      {{- if and (hasKey $matchValues "uri") (not (empty $matchValues.uri)) }}
+      uri:
+        {{ range $uriSettings, $uriValues:= $matchValues.uri -}}
+        {{- if and (has $uriSettings $stringMatch) (not (empty $uriSettings)) -}}
+        {{- $uriSettings -}}: {{ $uriValues -}}
+        {{- else -}}
+        {{ $uriSettings | quote | printf "\n%s was your StringMatch, please check your uri settings" | fail  }}
+        {{- end -}}
+        {{- end -}}
+      {{- end -}}
+
+      {{- if and (hasKey $matchValues "scheme") (not (empty $matchValues.scheme)) }}
+      scheme:
+        {{ range $schemeSettings, $schemeValues:= $matchValues.scheme -}}
+        {{- if and (has $schemeSettings $stringMatch) (not (empty $schemeSettings)) -}}
+        {{- $schemeSettings -}}: {{ $schemeValues -}}
+        {{- else -}}
+        {{ $schemeSettings | quote | printf "\n%s was your StringMatch, please check your scheme settings" | fail  }}
+        {{- end -}}
+        {{- end -}}
+      {{- end -}}
+
+      {{- if and (hasKey $matchValues "method") (not (empty $matchValues.method)) }}
+      method:
+        {{ range $methodSettings, $methodValues:= $matchValues.method -}}
+        {{- if and (has $methodSettings $stringMatch) (not (empty $methodSettings)) -}}
+        {{- $methodSettings -}}: {{ $methodValues -}}
+        {{- else -}}
+        {{ $methodSettings | quote | printf "\n%s was your StringMatch, please check your method settings" | fail  }}
+        {{- end -}}
+        {{- end -}}
+      {{- end -}}
+
+      {{- if and (hasKey $matchValues "authority") (not (empty $matchValues.authority)) }}
+      authority:
+        {{ range $authoritySettings, $authorityValues:= $matchValues.authority -}}
+        {{- if and (has $authoritySettings $stringMatch) (not (empty $authoritySettings)) -}}
+        {{- $authoritySettings -}}: {{ $authorityValues -}}
+        {{- else -}}
+        {{ $authoritySettings | quote | printf "\n%s was your StringMatch, please check your authority settings" | fail  }}
+        {{- end -}}
+        {{- end -}}
+      {{- end -}}
+
+      {{ if and (hasKey $matchValues "headers") (not (empty $matchValues.headers)) }}
+      headers:
+        {{ range $header, $headerValues:= $matchValues.headers -}}
+        {{ if not (empty $header) -}}
+        {{ range $stringMatchType, $stringMatchValue := $headerValues -}}
+        {{ if and (has $stringMatchType $stringMatch) (not (empty $stringMatchValue)) -}}
+        {{- $header -}}:
+          {{ $stringMatchType -}}: {{ $stringMatchValue }}
+        {{ end -}}
+        {{ end -}}
+        {{ end -}}
+        {{ end -}}
+      {{- end -}}
+
+      {{ if and (hasKey $matchValues "port") (not (empty $matchValues.port)) }}
+      port: {{ $matchValues.port }}
+      {{- end -}}      
+
+      {{ if and (hasKey $matchValues "sourceLabels") (not (empty $matchValues.sourceLabels)) }}
+      sourceLabels: 
+        {{ range $label, $labelValues := $matchValues.sourceLabels -}}
+        {{ if not (empty $label) -}}
+        {{ $label }}: {{ $labelValues }}
+        {{ end }}
+        {{- end -}}
+      {{- end -}} 
+
+      {{ if and (hasKey $matchValues "gateways") (not (empty $matchValues.gateways)) }}
+      gateways: 
+      {{- range $matchValues.gateways }}
+        - {{ . }}
+      {{- end }}
+      {{- end -}} 
+
+      {{ if and (hasKey $matchValues "queryParams") (not (empty $matchValues.queryParams)) }}
+      queryParams:
+        {{ range $queryParam, $queryParamValues:= $matchValues.queryParams -}}
+        {{ if not (empty $queryParam) -}}
+        {{ range $stringMatchType, $stringMatchValue := $queryParamValues -}}
+        {{ if and (has $stringMatchType $stringMatch) (not (empty $stringMatchValue)) -}}
+        {{- $queryParam -}}:
+          {{ $stringMatchType -}}: {{ $stringMatchValue }}
+        {{ end -}}
+        {{ end -}}
+        {{ end -}}
+        {{ end -}}
+      {{ end -}}
+
+      {{ if and (hasKey $matchValues "ignoreUriCase") (not (empty $matchValues.ignoreUriCase)) }}
+      ignoreUriCase: {{ $matchValues.ignoreUriCase }}
+      {{- end -}}  
+
+      {{ if and (hasKey $matchValues "withoutHeaders") (not (empty $matchValues.withoutHeaders)) }}
+      withoutHeaders:
+        {{ range $header, $headerValues:= $matchValues.withoutHeaders -}}
+        {{ if not (empty $header) -}}
+        {{ range $stringMatchType, $stringMatchValue := $headerValues -}}
+        {{ if and (has $stringMatchType $stringMatch) (not (empty $stringMatchValue)) -}}
+        {{- $header -}}:
+          {{ $stringMatchType -}}: {{ $stringMatchValue }}
+        {{ end -}}
+        {{ end -}}
+        {{ end -}}
+        {{ end -}}
+      {{ end -}}
+
+      {{ if and (hasKey $matchValues "sourceNamespace") (not (empty $matchValues.sourceNamespace)) }}
+      sourceNamespace: {{ $matchValues.sourceNamespace }}
+      {{- end -}}  
+
+      {{ if and (hasKey $matchValues "statPrefix") (not (empty $matchValues.statPrefix)) }}
+      statPrefix: {{ $matchValues.statPrefix }}
+      {{- end -}}  
+
+      {{- end -}}
+    {{ end }}
+
+    {{ if and (hasKey $httpSettings "route") (not (empty $httpSettings.route)) }}
+    route:
+      {{- $destinationSettings := list "host" "subset" "port" -}}
+      {{ range $routeSettings, $routeValues:= $httpSettings.route -}}
+
+      {{ if and (hasKey $routeValues "destination") (not (empty $routeValues.destination)) }}
+    - destination:
+      {{ range $destinationSetting, $destinationSettingValue := $routeValues.destination }}
+        {{ if and (eq $destinationSetting "port") (not (empty $destinationSettingValue)) -}}
+        {{ range $portNumber, $number := $destinationSettingValue }}
+        {{ if (not (empty $number)) -}}
+        {{ $destinationSetting -}}: 
+          {{ $portNumber -}}: {{ $number -}}
+        {{ end -}}
+        {{ end }}
+        {{ else }}
+        {{ $destinationSetting -}}: {{ $destinationSettingValue -}}
+        {{ end -}}
+      {{- end -}}
+      {{- end -}}
+
+      {{ if and (hasKey $routeValues "weight") (not (empty $routeValues.weight)) }} 
+      weight: {{ $routeValues.weight }}
+      {{- end -}}
+
+      {{ if and (hasKey $routeValues "headers") (not (empty $routeValues.headers)) }} 
+      headers:
+        {{ $headerFields := list "response" "request" -}}
+        {{ $headerOperations := list "set" "add" "remove" -}}
+        {{ range $header, $headerValues:= $routeValues.headers -}}
+        {{ if and (not (empty $header)) (has $header $headerFields) -}}
+          {{ $header -}}:
+          {{ range $operation, $listHeaders := $headerValues -}}
+          {{- if and (has $operation $headerOperations) (not (empty $operation)) -}}
+          {{- $operation -}}:
+          {{ if or (eq $operation "add") (eq $operation "set") -}}
+          {{ range $headerName, $headerValue := $listHeaders }}
+            {{ $headerName -}}: {{ $headerValue -}}
+          {{ end -}}
+          {{ else -}}
+          {{ range $listHeaders -}}
+        - {{ . -}}
+          {{- end -}}            
+          {{ end -}}
+          {{- end -}}
+        {{ end -}}
+        {{ end }}
+        {{ end -}}
+      {{ end }}
+
+      {{ end }}
+    {{ end }}
+
+    {{ if and (hasKey $httpSettings "redirect") (not (empty $httpSettings.redirect)) }}
+    redirect:
+      {{ range $redirectSettings, $redirectValues:= $httpSettings.redirect -}}
+
+      {{- if and (hasKey $redirectValues "uri") (not (empty $redirectValues.uri)) }}
+      uri: {{ $redirectValues.uri }}
+      {{- end -}} 
+      
+      {{- if and (hasKey $redirectValues "authority") (not (empty $redirectValues.authority)) }}
+      authority: {{ $redirectValues.authority }}
+      {{- end -}} 
+
+      {{ if and (hasKey $redirectValues "port") (not (empty $redirectValues.port)) }}
+      port: {{ $redirectValues.port }}
+      {{- end -}}
+
+      {{ if and (hasKey $redirectValues "derivePort") (not (empty $redirectValues.derivePort)) }}
+      {{ $redirectPortSelection := list "FROM_PROTOCOL_DEFAULT" "FROM_REQUEST_PORT" -}}
+      {{ if has $redirectValues.derivePort $redirectPortSelection }}
+      derivePort: {{ $redirectValues.derivePort }}
+      {{ else }}
+      {{ $redirectValues.derivePort | quote | printf "\n%s was your derive port, use FROM_PROTOCOL_DEFAULT or FROM_REQUEST_PORT" | fail }}
+      {{- end -}}
+      {{- end -}}
+
+      {{- if and (hasKey $redirectValues "scheme") (not (empty $redirectValues.scheme)) }}
+      scheme: {{ $redirectValues.scheme }}
+      {{- end -}} 
+
+      {{- if and (hasKey $redirectValues "redirectCode") (not (empty $redirectValues.redirectCode)) }}
+      redirectCode: {{ $redirectValues.redirectCode }}
+      {{- end -}} 
+
+      {{- end -}}
+    {{ end }}
+
+    {{ if and (hasKey $httpSettings "directResponse") (not (empty $httpSettings.directResponse)) }}
+    directResponse:
+      {{ range $directResponseSettings, $directResponseValues:= $httpSettings.directResponse -}}
+
+      {{- if and (hasKey $directResponseValues "status") (not (empty $directResponseValues.status)) }}
+      status: {{ $directResponseValues.status }}
+      {{- end -}} 
+
+      {{- if and (hasKey $directResponseValues "body") (not (empty $directResponseValues.body)) }}
+      body: 
+        {{ if and ($directResponseValues.body.string) (not (empty $directResponseValues.body.string)) }}
+        string: {{ $directResponseValues.body.string | quote }}
+        {{ else if and ($directResponseValues.body.bytes) (not (empty $directResponseValues.body.bytes)) }}
+        bytes: {{ $directResponseValues.body.bytes }}
+        {{ else }}
+        {{ printf "directResponse body type must be string or bytes" | fail }}
+        {{- end -}}
+        {{- end -}}
+
+      {{- end -}}
+    {{ end }}
+
+    {{ if and (hasKey $httpSettings "rewrite") (not (empty $httpSettings.rewrite)) }}
+    rewrite:
+      {{ range $rewriteSettings, $rewriteValues:= $httpSettings.rewrite -}}
+
+      {{- if and (hasKey $rewriteValues "uri") (not (empty $rewriteValues.uri)) }}
+      uri: {{ $rewriteValues.uri }}
+      {{- end -}} 
+      
+      {{- if and (hasKey $rewriteValues "authority") (not (empty $rewriteValues.authority)) }}
+      authority: {{ $rewriteValues.authority }}
+      {{- end -}} 
+
+      {{- end -}}
+    {{ end }}
+
+    {{ if and (hasKey $httpSettings "retries") (not (empty $httpSettings.retries)) }}
+    retries:
+      {{ range $retriesSettings, $retriesValues:= $httpSettings.retries -}}
+
+      {{- if and (hasKey $retriesValues "attempts") (not (empty $retriesValues.attempts)) }}
+      attempts: {{ $retriesValues.attempts }}
+      {{- end -}} 
+
+      {{- if and (hasKey $retriesValues "perTryTimeout") (not (empty $retriesValues.perTryTimeout)) }}
+      perTryTimeout: {{ $retriesValues.perTryTimeout }}
+      {{- end -}} 
+
+      {{- if and (hasKey $retriesValues "retryOn") (not (empty $retriesValues.retryOn)) }}
+      retryOn: {{ $retriesValues.retryOn | quote }}
+      {{- end -}} 
+
+      {{- if and (hasKey $retriesValues "retryRemoteLocalities") (not (empty $retriesValues.retryRemoteLocalities)) }}
+      retryRemoteLocalities: {{ $retriesValues.retryRemoteLocalities }}
+      {{- end -}}
+
+      {{- end -}}
+    {{ end }}
+
+    {{ if and (hasKey $httpSettings "corsPolicy") (not (empty $httpSettings.corsPolicy)) }}
+    corsPolicy:
+      {{ $stringMatch := list "exact" "prefix" "regex" -}}
+      {{ range $corsPolicySettings, $corsPolicyValues:= $httpSettings.corsPolicy -}}
+
+      {{ if and (hasKey $corsPolicyValues "allowOrigins") (not (empty $corsPolicyValues.allowOrigins)) -}}
+      allowOrigins:
+        {{ range $allowedOriginIndex, $allowedOrigin:= $corsPolicyValues.allowOrigins -}}
+        {{ range $allowedOriginType, $allowedOriginValue := $allowedOrigin -}}
+        {{ if and (has $allowedOriginType $stringMatch) (not (empty $allowedOriginValue)) -}}
+      - {{ $allowedOriginType -}}: {{ $allowedOriginValue -}}
+        {{ end -}}
+        {{ end -}}
+        {{ end -}}
+      {{ end -}}
+
+      {{ if and (hasKey $corsPolicyValues "allowMethods") (not (empty $corsPolicyValues.allowMethods)) }}
+      allowMethods:
+      {{- range $corsPolicyValues.allowMethods }}
+      - {{ . }}
+      {{- end }}
+      {{- end -}} 
+
+      {{ if and (hasKey $corsPolicyValues "allowHeaders") (not (empty $corsPolicyValues.allowHeaders)) }}
+      allowHeaders:
+      {{- range $corsPolicyValues.allowHeaders }}
+      - {{ . }}
+      {{- end }}
+      {{- end -}} 
+
+      {{ if and (hasKey $corsPolicyValues "exposeHeaders") (not (empty $corsPolicyValues.exposeHeaders)) }}
+      exposeHeaders:
+      {{- range $corsPolicyValues.exposeHeaders }}
+      - {{ . }}
+      {{- end }}
+      {{- end -}} 
+
+      {{ if and (hasKey $corsPolicyValues "maxAge") (not (empty $corsPolicyValues.maxAge)) }}
+      maxAge: {{ $corsPolicyValues.maxAge }}
+      {{- end -}} 
+
+      {{ if and (hasKey $corsPolicyValues "allowCredentials") (not (empty $corsPolicyValues.allowCredentials)) }}
+      allowCredentials: {{ $corsPolicyValues.allowCredentials }}
+      {{- end -}}  
+
+      {{- end -}}
+    {{ end }}
+
+    {{ if and (hasKey $httpSettings "fault") (not (empty $httpSettings.fault)) }}
+    fault:
+      {{ $faultType := list "delay" "abort" -}}
+
+      {{ range $faultSettings, $faultValues:= $httpSettings.fault -}}
+      {{ if and (not (empty $faultSettings)) (has $faultSettings $faultType) -}}
+      {{ $faultSettings -}}:
+        {{ range $faultSpecName, $faultSpecValue := $faultValues -}}
+        {{ if not (eq $faultSpecName "percentage") -}}
+        {{- $faultSpecName -}}: {{ $faultSpecValue -}}
+        {{ else -}}
+        {{ $faultSpecName -}}: 
+          value: {{ $faultSpecValue.value -}}
+        {{- end }}
+        {{ end }}
+      {{ end -}}
+
+      {{- end -}}
+    {{ end }}
+
+    {{ if and (hasKey $httpSettings "headers") (not (empty $httpSettings.headers)) }}
+    headers:
+      {{ $headerFields := list "response" "request" -}}
+      {{ $headerOperations := list "set" "add" "remove" -}}
+      {{ range $header, $headerValues:= $httpSettings.headers -}}
+      {{ if and (not (empty $header)) (has $header $headerFields) -}}
+        {{ $header -}}:
+        {{ range $operation, $listHeaders := $headerValues -}}
+        {{- if and (has $operation $headerOperations) (not (empty $operation)) -}}
+        {{- $operation -}}:
+        {{ if or (eq $operation "add") (eq $operation "set") }}
+        {{- range $headerName, $headerValue := $listHeaders }}
+          {{ $headerName -}}: {{ $headerValue -}}
+        {{ end -}}
+        {{ else -}}
+        {{ range $listHeaders -}}
+      - {{ . -}}
+        {{- end -}}            
+        {{ end -}}
+        {{- end -}}
+      {{ end -}}
+      {{ end }}
+      {{ end -}}
+    {{ end }}
+
+    {{ if and (hasKey $httpSettings "delegate") (not (empty $httpSettings.delegate)) }}
+    delegate:
+      {{- range $delegateSettings, $delegateValues:= $httpSettings.delegate -}}
+      {{- if and (or (eq $delegateSettings "name") (eq $delegateSettings "namespace")) (not (empty $delegateValues)) }}
+      {{ $delegateSettings -}}: {{ $delegateValues -}}
+      {{- end -}} 
+
+      {{- end -}}
+    {{ end }}
+
+    {{ if and (hasKey $httpSettings "timeout") (not (empty $httpSettings.timeout)) }}
+    timeout: {{ $httpSettings.timeout -}}
+    {{ end }}
+
+    {{ if and (hasKey $httpSettings "mirror") (not (empty $httpSettings.mirror)) }}
+    mirror:
+      {{- $destinationSettings := list "host" "subset" "port" -}}
+
+      {{- range $destinationSetting, $destinationSettingValue := $httpSettings.mirror -}}
+      {{- if and (eq $destinationSetting "port") (not (empty $destinationSettingValue)) -}}
+      {{- range $portNumber, $number := $destinationSettingValue }}
+      {{- if (not (empty $number)) -}}
+      {{- $destinationSetting -}}: 
+        {{ $portNumber -}}: {{ $number -}}
+      {{- end -}}
+      {{- end }}
+      {{- else }}
+      {{ $destinationSetting -}}: {{ $destinationSettingValue -}}
+      {{- end -}}
+
+      {{- end -}}
+    {{ end }}
+
+    {{ if and (hasKey $httpSettings "mirrorPercentage") (not (empty $httpSettings.mirrorPercentage)) }}
+    mirrorPercentage: 
+      number: {{ $httpSettings.mirrorPercentage.number -}}
+    {{ end }}
+    
+    {{ if not (empty $httpSettings.name) }}
+    name: {{ $httpSettings.name }}
+    {{ end }}
+
+  {{ end }}
+  {{ end }}
+
+  {{- if not (empty $vs.tls) }}
+  tls:
+    {{- range $tlsIndex, $tlsSettings := $vs.tls }}
+  - {{ if and (hasKey $tlsSettings "match") (not (empty $tlsSettings.match)) -}}
+    match:
+    - {{ range $matchSettings, $matchValues:= $tlsSettings.match -}}
+
+      {{ if and (hasKey $matchValues "sniHosts") (not (empty $matchValues.sniHosts)) -}}
+      sniHosts: 
+      {{- range $matchValues.sniHosts }}
+      - {{ . }}
+      {{- end }}
+      {{- end -}} 
+
+      {{ if and (hasKey $matchValues "destinationSubnets") (not (empty $matchValues.destinationSubnets)) }}
+      destinationSubnets: 
+      {{- range $matchValues.destinationSubnets }}
+        - {{ . }}
+      {{- end }}
+      {{- end -}} 
+
+      {{ if and (hasKey $matchValues "port") (not (empty $matchValues.port)) }}
+      port: {{ $matchValues.port }}
+      {{- end -}}      
+
+      {{ if and (hasKey $matchValues "sourceLabels") (not (empty $matchValues.sourceLabels)) }}
+      sourceLabels: 
+        {{ range $label, $labelValues := $matchValues.sourceLabels -}}
+        {{ if not (empty $label) -}}
+        {{ $label }}: {{ $labelValues }}
+        {{ end }}
+        {{- end -}}
+      {{- end -}} 
+
+      {{ if and (hasKey $matchValues "gateways") (not (empty $matchValues.gateways)) }}
+      gateways: 
+      {{- range $matchValues.gateways }}
+        - {{ . }}
+      {{- end }}
+      {{- end -}} 
+
+      {{ if and (hasKey $matchValues "sourceNamespace") (not (empty $matchValues.sourceNamespace)) }}
+      sourceNamespace: {{ $matchValues.sourceNamespace }}
+      {{- end -}}   
+
+    {{- end -}}
+    {{- end -}}
+
+
+    {{ if and (hasKey $tlsSettings "route") (not (empty $tlsSettings.route)) -}}
+    route:
+      {{- $destinationSettings := list "host" "subset" "port" -}}
+      {{ range $routeSettings, $routeValues:= $tlsSettings.route -}}
+
+      {{ if and (hasKey $routeValues "destination") (not (empty $routeValues.destination)) }}
+    - destination:
+      {{ range $destinationSetting, $destinationSettingValue := $routeValues.destination -}}
+        {{ if and (eq $destinationSetting "port") (not (empty $destinationSettingValue)) -}}
+        {{ range $portNumber, $number := $destinationSettingValue }}
+        {{ if (not (empty $number)) -}}
+        {{ $destinationSetting -}}: 
+          {{ $portNumber -}}: {{ $number -}}
+        {{ end -}}
+        {{ end }}
+        {{ else }}
+        {{ $destinationSetting -}}: {{ $destinationSettingValue -}}
+        {{ end -}}
+      {{- end -}}
+      {{- end -}}
+
+      {{ if and (hasKey $routeValues "weight") (not (empty $routeValues.weight)) }} 
+      weight: {{ $routeValues.weight }}
+      {{- end -}}
+
+    {{- end -}}
+    {{- end -}}
+
+  {{- end -}}
+  {{- end -}}
+
+  {{- if not (empty $vs.tcp) }}
+  tcp:
+    {{- range $tcpIndex, $tcpSettings := $vs.tcp }}
+  - {{ if and (hasKey $tcpSettings "match") (not (empty $tcpSettings.match)) -}}
+    match:
+    - {{ range $matchSettings, $matchValues:= $tcpSettings.match -}}
+
+      {{ if and (hasKey $matchValues "destinationSubnets") (not (empty $matchValues.destinationSubnets)) }}
+      destinationSubnets: 
+      {{- range $matchValues.destinationSubnets }}
+        - {{ . }}
+      {{- end }}
+      {{- end -}} 
+
+      {{ if and (hasKey $matchValues "port") (not (empty $matchValues.port)) -}}
+      port: {{ $matchValues.port }}
+      {{- end -}}      
+
+      {{ if and (hasKey $matchValues "sourceLabels") (not (empty $matchValues.sourceLabels)) }}
+      sourceLabels: 
+        {{ range $label, $labelValues := $matchValues.sourceLabels -}}
+        {{ if not (empty $label) -}}
+        {{ $label }}: {{ $labelValues }}
+        {{ end }}
+        {{- end -}}
+      {{- end -}} 
+
+      {{ if and (hasKey $matchValues "gateways") (not (empty $matchValues.gateways)) }}
+      gateways: 
+      {{- range $matchValues.gateways }}
+        - {{ . }}
+      {{- end }}
+      {{- end -}} 
+
+      {{ if and (hasKey $matchValues "sourceNamespace") (not (empty $matchValues.sourceNamespace)) }}
+      sourceNamespace: {{ $matchValues.sourceNamespace }}
+      {{- end -}}   
+
+    {{- end -}}
+    {{- end -}}
+
+
+    {{ if and (hasKey $tcpSettings "route") (not (empty $tcpSettings.route)) -}}
+    route:
+      {{- $destinationSettings := list "host" "subset" "port" -}}
+      {{ range $routeSettings, $routeValues:= $tcpSettings.route -}}
+
+      {{ if and (hasKey $routeValues "destination") (not (empty $routeValues.destination)) }}
+    - destination:
+      {{ range $destinationSetting, $destinationSettingValue := $routeValues.destination -}}
+        {{ if and (eq $destinationSetting "port") (not (empty $destinationSettingValue)) -}}
+        {{ range $portNumber, $number := $destinationSettingValue }}
+        {{ if (not (empty $number)) -}}
+        {{ $destinationSetting -}}: 
+          {{ $portNumber -}}: {{ $number -}}
+        {{ end -}}
+        {{ end }}
+        {{ else }}
+        {{ $destinationSetting -}}: {{ $destinationSettingValue -}}
+        {{ end -}}
+      {{- end -}}
+      {{- end -}}
+
+      {{ if and (hasKey $routeValues "weight") (not (empty $routeValues.weight)) }} 
+      weight: {{ $routeValues.weight }}
+      {{- end -}}
+
+    {{- end -}}
+    {{- end -}}
+
+  {{- end -}}
+  {{- end -}}
+
+
+{{- end -}}
+{{- end -}}

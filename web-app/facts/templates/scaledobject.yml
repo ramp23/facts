@@ -1,0 +1,92 @@
+{{- range $host, $so := .Values.scaledobjects }}
+---
+apiVersion: {{ include "helpers.capabilities.keda.apiVersion" $ }}
+kind: ScaledObject
+metadata:
+  name: prometheus-{{ include "helpers.app.fullname" (dict "name" ($so.name | default $host) "context" $) }}
+  namespace: {{ $.Release.Namespace | quote }}
+  labels:
+    {{- include "helpers.app.labels" $ | nindent 4 }}
+    {{- with $so.labels }}{{- include "helpers.tplvalues.render" (dict "value" . "context" $) | nindent 4 }}{{- end }}
+  annotations:
+    {{- include "helpers.app.genericAnnotations" $ | indent 4 }}
+    {{- with $so.annotations }}{{- include "helpers.tplvalues.render" (dict "value" . "context" $) | nindent 4 }}{{- end }}
+spec:
+  scaleTargetRef:
+    {{- if not (empty $so.scaleTargetRef.apiVersion) }}
+    apiVersion: {{ $so.scaleTargetRef.apiVersion }}
+    {{- end }}
+    {{- if not (empty $so.scaleTargetRef.kind) }}
+    kind: {{ $so.scaleTargetRef.kind }}
+    {{- end }}
+    name: {{ required "Name ScaledObject is required and must be in the same namespace as the ScaledObject." $so.scaleTargetRef.name }}
+    {{- if not (empty $so.scaleTargetRef.envSourceContainerName) }}
+    envSourceContainerName: {{ $so.scaleTargetRef.envSourceContainerName }}
+    {{- end }}
+  {{- if not (empty $so.pollingInterval) }}
+  pollingInterval: {{ $so.pollingInterval }}
+  {{- end }}
+  {{- if not (empty $so.cooldownPeriod) }}
+  cooldownPeriod: {{ $so.cooldownPeriod }}
+  {{- end }} 
+  {{- if not (empty $so.idleReplicaCount) }}
+  idleReplicaCount: {{ $so.idleReplicaCount }}
+  {{- end }}
+  {{- if not (empty $so.minReplicaCount) }}
+  minReplicaCount: {{ $so.minReplicaCount }}
+  {{- end }} 
+  {{- if not (empty $so.maxReplicaCount) }}
+  maxReplicaCount: {{ $so.maxReplicaCount }}
+  {{- end }}
+  {{- if not (empty $so.fallback) }}
+  fallback:   
+    failureThreshold: {{ required "failureThreshold is required if fallback section is included!" $so.fallback.failureThreshold }}
+    replicas: {{ required "replicas are required if fallback section is included!" $so.fallback.replicas }}                                    
+  {{- end }} 
+
+  {{- if not (empty $so.advanced) }}
+  advanced: 
+    {{- if not (empty $so.advanced.restoreToOriginalReplicaCount) }}
+    restoreToOriginalReplicaCount: {{ $so.advanced.restoreToOriginalReplicaCount }}
+    {{- end }}
+    {{- if not (empty $so.advanced.horizontalPodAutoscalerConfig) }}
+    horizontalPodAutoscalerConfig:
+      {{- if not (empty $so.advanced.horizontalPodAutoscalerConfig.name) }}
+      name: {{ $so.advanced.horizontalPodAutoscalerConfig.name }}
+      {{- end }}
+      {{- if not (empty $so.advanced.horizontalPodAutoscalerConfig.behavior) }}
+      behavior:
+        {{- range $behavior, $options := $so.advanced.horizontalPodAutoscalerConfig.behavior }}
+        {{ $behavior }}:
+          {{- if not (empty $options.stabilizationWindowSeconds) }}
+          stabilizationWindowSeconds: {{ $options.stabilizationWindowSeconds }}
+          {{- end }}
+          {{- if not (empty $options.selectPolicy) }}
+          selectPolicy: {{ $options.selectPolicy }}
+          {{- end }}
+
+          {{- if not (empty $options.policies) }}
+          policies:
+            {{- range $options.policies }}
+          - type: {{ .type }}
+            value: {{ .value }}
+            periodSeconds: {{ .periodSeconds }}
+            {{- end }}
+          {{- end }}
+        {{- end }}
+      {{- end }}
+    {{- end }}
+  {{- end }} 
+
+  {{- if not (empty $so.triggers) }}
+  triggers:
+  {{- range $so.triggers }}
+  - type: {{ required "Trigger type must be set." .type }}
+    metadata: 
+      {{- range $optName, $optValue := .metadata }}
+      {{ $optName }}: {{ $optValue }}
+      {{- end -}}
+  {{- end }}
+  {{- end }}
+
+{{- end }}
