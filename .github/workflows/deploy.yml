@@ -10,9 +10,9 @@ on:
 jobs:
   deploy_on_eks:
     runs-on: ubuntu-latest
-    # env:
-    #   AWS_REGION: eu-central-1
-    #   CLUSTER_NAME: MoonActive
+    env:
+      AWS_REGION: eu-central-1
+      CLUSTER_NAME: MoonActive
     steps:
     - name: Check out code
       uses: actions/checkout@v3
