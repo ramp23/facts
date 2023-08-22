@@ -13,16 +13,23 @@ jobs:
     env:
       AWS_REGION: eu-central-1
       CLUSTER_NAME: MoonActive
+      PROFILE_NAME: eks-cluster
     steps:
     - name: Check out code
       uses: actions/checkout@v3
 
+    # - name: Configure AWS Credentials
+    #   uses: aws-actions/configure-aws-credentials@v2
+    #   with:
+    #     aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+    #     aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+    #     aws-region: ${{ env.AWS_REGION }}
+
     - name: Configure AWS Credentials
-      uses: aws-actions/configure-aws-credentials@v2
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ${{ env.AWS_REGION }}
+      run: |
+        aws configure set region ${{ env.AWS_REGION }} --profile ${{ env.PROFILE_NAME }}
+        aws configure set aws_access_key_id ${{ secrets.AWS_ACCESS_KEY_ID  }} --profile ${{ env.PROFILE_NAME }}
+        aws configure set aws_secret_access_key ${{ secrets.AWS_SECRET_ACCESS_KEY }} --profile ${{ env.PROFILE_NAME }}
 
     - name: Login to Amazon ECR
       id: login-ecr
@@ -42,7 +49,7 @@ jobs:
         # echo $(cat /home/runner/.kube/config | base64 | tr -d ' ') >> $GITHUB_ENV
         # echo 'EOF' >> $GITHUB_ENV
       run: |
-        aws eks update-kubeconfig --name ${{ env.CLUSTER_NAME }} --region ${{ env.AWS_REGION }}  --kubeconfig /home/runner/.kube/config
+        aws eks update-kubeconfig --name ${{ env.CLUSTER_NAME }} --region ${{ env.AWS_REGION }}  --kubeconfig /home/runner/.kube/config --profile ${{ env.PROFILE_NAME }}
         cat ~/.aws/config
         cat ~/.aws/credentials
 
