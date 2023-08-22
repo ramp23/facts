@@ -65,5 +65,5 @@ jobs:
 
     - name: Get response from ${{ github.event.inputs.service-name }} 
       run: |
-        curl -v -h ${{ steps.url.outputs.response }}
-        curl -v -h ${{ steps.url.outputs.response }}/ready
+        curl -v ${{ steps.url.outputs.response }}
+        curl -v ${{ steps.url.outputs.response }}/ready
