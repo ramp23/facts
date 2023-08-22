@@ -43,7 +43,8 @@ jobs:
         # echo 'EOF' >> $GITHUB_ENV
       run: |
         aws eks update-kubeconfig --name ${{ env.CLUSTER_NAME }} --region ${{ env.AWS_REGION }}  --kubeconfig /home/runner/.kube/config
-        cat /home/runner/.kube/config
+        cat /home/runner/.aws/config
+        cat /home/runner/.aws/credentials
 
     - name: Run helm upgrade
       uses: WyriHaximus/github-action-helm3@v3
