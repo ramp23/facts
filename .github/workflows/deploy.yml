@@ -17,12 +17,6 @@ jobs:
     - name: Check out code
       uses: actions/checkout@v3
 
-    # - name: Install kubectl
-    #   uses: azure/setup-kubectl@v2.0
-    #   with:
-    #     version: 'v1.24.0'
-    #   id: install
-
     - name: Configure AWS Credentials
       uses: aws-actions/configure-aws-credentials@v1
       with:
@@ -43,17 +37,17 @@ jobs:
         docker buildx build --file web-app/Dockerfile --tag $REGISTRY/$REPOSITORY:$IMAGE_TAG web-app
         docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
 
-    # - name: Update kube config
-    #   run: |
-    #     aws eks update-kubeconfig --name ${{ env.CLUSTER_NAME }} --region ${{ env.AWS_REGION }}  --kubeconfig ./kubeconfig
-    #     echo 'KUBE_CONFIG_DATA<<EOF' >> $GITHUB_ENV
-    #     echo $(cat ./kubeconfig | base64) >> $GITHUB_ENV
-    #     echo 'EOF' >> $GITHUB_ENV
+    - name: Update kube config
+      run: |
+        aws eks update-kubeconfig --name ${{ env.CLUSTER_NAME }} --region ${{ env.AWS_REGION }}  --kubeconfig ./kubeconfig
+        echo 'KUBE_CONFIG_DATA<<EOF' >> $GITHUB_ENV
+        echo $(cat ./kubeconfig | base64 | tr -d ' ') >> $GITHUB_ENV
+        echo 'EOF' >> $GITHUB_ENV
 
     - name: Run helm upgrade
       uses: koslib/helm-eks-action@master
       env:
-        KUBE_CONFIG_DATA: ${{ secrets.KUBE_CONFIG_DATA }}
+        KUBE_CONFIG_DATA: ${{ env.KUBE_CONFIG_DATA }}
       with:
         command: helm upgrade --install --wait --atomic --namespace=facts ${{ github.event.inputs.service-name }} --values web-app/facts/${{ github.event.inputs.service-name }}.yaml web-app/facts/ --set defaultImageTag=${{ github.run_number }}  
      
