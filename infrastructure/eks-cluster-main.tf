@@ -1,7 +1,7 @@
 data "aws_subnets" "all_subnets" {
   filter {
     name   = "vpc-id"
-    values = [var.vpc_id]
+    values = [aws_vpc.main.id]
   }
 }
 
@@ -16,6 +16,13 @@ resource "aws_eks_cluster" "eks_cluster" {
     subnet_ids = toset(data.aws_subnets.all_subnets.ids)
   }
 
+  tags = {
+    "alpha.eksctl.io/cluster-oidc-enabled" = "true"
+  }
+
+  tags_all = {
+    "alpha.eksctl.io/cluster-oidc-enabled" = "true"
+  }
   # Ensure that IAM Role permissions are created before and deleted after EKS Cluster handling.
   # Otherwise, EKS will not be able to properly delete EKS managed EC2 infrastructure such as Security Groups.
   depends_on = [

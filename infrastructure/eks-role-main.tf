@@ -3,8 +3,8 @@ data "aws_iam_policy_document" "eks_assume_role" {
     effect = "Allow"
 
     principals {
-      type        = "Service"
-      identifiers = ["eks.amazonaws.com"]
+      type        = "AWS"
+      identifiers = ["arn:aws:iam::849234523634:root"]
     }
 
     actions = ["sts:AssumeRole"]
