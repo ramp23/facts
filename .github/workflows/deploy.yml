@@ -52,10 +52,7 @@ jobs:
     - name: Update kube config
       id: random-color-generator
       run: |
-        aws configure set region ${{ env.AWS_REGION }} --profile ${{ env.PROFILE_NAME }}
-        aws configure set aws_access_key_id ${{ secrets.AWS_ACCESS_KEY_ID  }} --profile ${{ env.PROFILE_NAME }}
-        aws configure set aws_secret_access_key ${{ secrets.AWS_SECRET_ACCESS_KEY }} --profile ${{ env.PROFILE_NAME }}
-        aws eks update-kubeconfig --name ${{ env.CLUSTER_NAME }} --region ${{ env.AWS_REGION }} --kubeconfig /home/runner/.kube/config --profile ${{ env.PROFILE_NAME }}
+        aws eks update-kubeconfig --name ${{ env.CLUSTER_NAME }} --region ${{ env.AWS_REGION }} --kubeconfig /home/runner/.kube/config 
         echo 'KUBE_CONFIG_DATA<<EOF' >> $GITHUB_ENV
         echo $(cat /home/runner/.kube/config | base64) >> $GITHUB_ENV
         echo 'EOF' >> $GITHUB_ENV
