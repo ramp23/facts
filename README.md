@@ -1,5 +1,5 @@
 
-# Project Title
+# Facts
 
 This project represents infrastructure managed with Terraform for creating AWS resources and Golang app based on EKS cluster.
 
